@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pojagi Studio</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>Pojagi Studio</h1>
+  </header>
+
+  <main id="app">
+    <aside id="settings-panel">
+      <h2>Settings</h2>
+
+      <label for="pattern-select">Pattern</label>
+      <select id="pattern-select">
+        <option value="tile">Tile</option>
+        <option value="frame">Frame</option>
+        <option value="diamond">Diamond</option>
+        <option value="nested">Nested Rectangle</option>
+      </select>
+
+      <fieldset>
+        <legend>Dimensions (inches)</legend>
+        <label for="input-width">Width</label>
+        <input type="number" id="input-width" value="40" min="1" max="200" step="0.5">
+        <label for="input-height">Height</label>
+        <input type="number" id="input-height" value="60" min="1" max="200" step="0.5">
+      </fieldset>
+
+      <fieldset>
+        <legend>Hems &amp; Seams (inches)</legend>
+        <label for="input-hem-sides">Sides hem</label>
+        <input type="number" id="input-hem-sides" value="1" min="0" max="10" step="0.25">
+        <label for="input-hem-top">Top hem</label>
+        <input type="number" id="input-hem-top" value="3" min="0" max="10" step="0.25">
+        <label for="input-hem-bottom">Bottom hem</label>
+        <input type="number" id="input-hem-bottom" value="1" min="0" max="10" step="0.25">
+        <label for="input-seam">Seam allowance</label>
+        <input type="number" id="input-seam" value="0.5" min="0" max="5" step="0.125">
+      </fieldset>
+
+      <div id="pattern-params"></div>
+
+      <button id="btn-export">Export PDF</button>
+    </aside>
+
+    <section id="preview-panel">
+      <canvas id="preview-canvas" width="600" height="800"></canvas>
+      <div id="cut-sheet"></div>
+    </section>
+
+    <aside id="colors-panel">
+      <h2>Colors</h2>
+
+      <details open>
+        <summary>IL019 Linen</summary>
+        <div id="swatches-il019" class="swatch-grid"></div>
+      </details>
+
+      <details open>
+        <summary>IL020 Linen</summary>
+        <div id="swatches-il020" class="swatch-grid"></div>
+      </details>
+
+      <details open>
+        <summary>Custom Colors</summary>
+        <div id="swatches-custom" class="swatch-grid"></div>
+      </details>
+
+      <details open>
+        <summary>Visual Picker</summary>
+        <div id="color-picker"></div>
+      </details>
+    </aside>
+  </main>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,220 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  color: #333;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  background: #2c3e50;
+  color: #fff;
+  padding: 12px 24px;
+}
+
+header h1 {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+#app {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 280px 1fr 300px;
+  min-height: 0;
+}
+
+/* Panels */
+#settings-panel,
+#colors-panel {
+  background: #f5f5f5;
+  padding: 16px;
+  overflow-y: auto;
+  border-right: 1px solid #ddd;
+}
+
+#colors-panel {
+  border-right: none;
+  border-left: 1px solid #ddd;
+}
+
+#preview-panel {
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+/* Settings panel */
+#settings-panel h2,
+#colors-panel h2 {
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+#settings-panel label {
+  display: block;
+  margin-top: 8px;
+  margin-bottom: 4px;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+#settings-panel select,
+#settings-panel input[type="number"] {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+#settings-panel fieldset {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-top: 12px;
+}
+
+#settings-panel legend {
+  font-weight: 600;
+  font-size: 13px;
+  padding: 0 4px;
+}
+
+#pattern-params {
+  margin-top: 12px;
+}
+
+#pattern-params label {
+  display: block;
+  margin-top: 8px;
+  margin-bottom: 4px;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+#pattern-params input[type="number"] {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+#btn-export {
+  margin-top: 20px;
+  width: 100%;
+  padding: 10px;
+  background: #2c3e50;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#btn-export:hover {
+  background: #34495e;
+}
+
+/* Canvas */
+#preview-canvas {
+  border: 1px solid #ddd;
+  max-width: 100%;
+  cursor: crosshair;
+}
+
+#cut-sheet {
+  margin-top: 16px;
+  width: 100%;
+  max-width: 600px;
+  font-size: 13px;
+}
+
+#cut-sheet table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+#cut-sheet th,
+#cut-sheet td {
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+#cut-sheet th {
+  background: #f0f0f0;
+  font-weight: 600;
+}
+
+/* Colors panel */
+details {
+  margin-bottom: 12px;
+}
+
+summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 4px 0;
+}
+
+.swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 32px);
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.swatch {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.swatch:hover {
+  transform: scale(1.15);
+  z-index: 1;
+}
+
+.swatch.selected {
+  outline: 2px solid #2c3e50;
+  outline-offset: 1px;
+}
+
+/* Zone highlight on canvas (applied via JS) */
+.zone-selected {
+  outline: 2px dashed #e74c3c;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  #app {
+    grid-template-columns: 1fr;
+  }
+
+  #settings-panel,
+  #colors-panel {
+    border: none;
+    border-bottom: 1px solid #ddd;
+  }
+
+  #preview-canvas {
+    max-width: 100%;
+  }
+}
