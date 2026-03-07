@@ -3,8 +3,8 @@
 // Pattern imports
 import { TilePattern } from './patterns/tile.js';
 import { FramePattern } from './patterns/frame.js';
-// import { DiamondPattern } from './patterns/diamond.js';
-// import { NestedPattern } from './patterns/nested.js';
+import { DiamondPattern } from './patterns/diamond.js';
+import { NestedPattern } from './patterns/nested.js';
 
 // Picker import
 import { renderPicker } from './picker.js';
@@ -210,6 +210,8 @@ async function init() {
   // Register patterns
   registerPattern('tile', TilePattern);
   registerPattern('frame', FramePattern);
+  registerPattern('diamond', DiamondPattern);
+  registerPattern('nested', NestedPattern);
 
   // Initialize with default pattern
   onPatternChange();
