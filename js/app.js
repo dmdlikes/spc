@@ -1,13 +1,16 @@
 // Pojagi Studio — Main Application
 
-// Pattern imports (will be added as patterns are implemented)
-// import { TilePattern } from './patterns/tile.js';
-// import { FramePattern } from './patterns/frame.js';
+// Pattern imports
+import { TilePattern } from './patterns/tile.js';
+import { FramePattern } from './patterns/frame.js';
 // import { DiamondPattern } from './patterns/diamond.js';
 // import { NestedPattern } from './patterns/nested.js';
 
+// Picker import
+import { renderPicker } from './picker.js';
+
 // Color imports
-import { loadLibraries, renderSwatchGrid } from './colors.js';
+import { loadLibraries, renderSwatchGrid, addCustomColor } from './colors.js';
 
 const canvas = document.getElementById('preview-canvas');
 const ctx = canvas.getContext('2d');
@@ -197,10 +200,19 @@ async function init() {
   renderSwatchGrid(document.getElementById('swatches-il020'), libs.il020, onColorSelect);
   renderSwatchGrid(document.getElementById('swatches-custom'), libs.custom, onColorSelect);
 
-  // Store libs for re-rendering custom swatches
-  window._colorLibs = libs;
+  // Visual color picker
+  renderPicker(document.getElementById('color-picker'), (color) => {
+    const custom = addCustomColor(color.name, color.hex);
+    renderSwatchGrid(document.getElementById('swatches-custom'), custom, onColorSelect);
+    assignColor(color);
+  });
 
-  render();
+  // Register patterns
+  registerPattern('tile', TilePattern);
+  registerPattern('frame', FramePattern);
+
+  // Initialize with default pattern
+  onPatternChange();
   console.log('Pojagi Studio loaded');
 }
 
