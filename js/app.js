@@ -7,7 +7,7 @@
 // import { NestedPattern } from './patterns/nested.js';
 
 // Color imports
-// import { loadLibraries, renderSwatchGrid } from './colors.js';
+import { loadLibraries, renderSwatchGrid } from './colors.js';
 
 const canvas = document.getElementById('preview-canvas');
 const ctx = canvas.getContext('2d');
@@ -182,13 +182,23 @@ export function registerPattern(name, patternModule) {
 export { state, patterns, canvas, ctx };
 
 // Init
-function init() {
+async function init() {
   // Event listeners
   document.getElementById('pattern-select').addEventListener('change', onPatternChange);
   for (const id of ['input-width', 'input-height', 'input-hem-sides', 'input-hem-top', 'input-hem-bottom', 'input-seam']) {
     document.getElementById(id).addEventListener('input', onInputChange);
   }
   canvas.addEventListener('click', handleCanvasClick);
+
+  // Load color libraries
+  const libs = await loadLibraries();
+  const onColorSelect = (color) => assignColor(color);
+  renderSwatchGrid(document.getElementById('swatches-il019'), libs.il019, onColorSelect);
+  renderSwatchGrid(document.getElementById('swatches-il020'), libs.il020, onColorSelect);
+  renderSwatchGrid(document.getElementById('swatches-custom'), libs.custom, onColorSelect);
+
+  // Store libs for re-rendering custom swatches
+  window._colorLibs = libs;
 
   render();
   console.log('Pojagi Studio loaded');
