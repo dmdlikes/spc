@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_database": "pojagi_studio",
+  "project_id": "4030eddb-90b3-4753-a0c5-8971c302166e"
+}
