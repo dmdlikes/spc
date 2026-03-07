@@ -9,6 +9,9 @@ import { NestedPattern } from './patterns/nested.js';
 // Picker import
 import { renderPicker } from './picker.js';
 
+// PDF export
+import { exportPDF } from './pdf.js';
+
 // Color imports
 import { loadLibraries, renderSwatchGrid, addCustomColor } from './colors.js';
 
@@ -205,6 +208,16 @@ async function init() {
     const custom = addCustomColor(color.name, color.hex);
     renderSwatchGrid(document.getElementById('swatches-custom'), custom, onColorSelect);
     assignColor(color);
+  });
+
+  // Export PDF button
+  document.getElementById('btn-export').addEventListener('click', () => {
+    const config = getConfig();
+    config.patternName = state.pattern;
+    const pattern = patterns[state.pattern];
+    if (pattern) {
+      exportPDF(config, pattern, canvas);
+    }
   });
 
   // Register patterns
