@@ -127,11 +127,43 @@ header h1 {
   background: #34495e;
 }
 
+#btn-save,
+#btn-delete-design {
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  background: #fff;
+}
+
+#btn-save:hover {
+  background: #e8e8e8;
+}
+
+#btn-delete-design {
+  color: #c0392b;
+  border-color: #e0b0b0;
+}
+
+#btn-delete-design:hover {
+  background: #fde8e8;
+}
+
+#design-select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
 /* Canvas */
 #preview-canvas {
   border: 1px solid #ddd;
   max-width: 100%;
   cursor: crosshair;
+  outline: none;
 }
 
 #cut-sheet {

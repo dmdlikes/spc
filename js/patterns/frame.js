@@ -1,121 +1,214 @@
-// Frame Pattern — center panel with decorative border of squares and bars
+// Square Pattern — center panel with border of 6x6 units
+// Each unit: strip (outer) / 3 squares / strip (inner)
+// See docs/patterns/square-pattern-notes.md for full spec
 
 import { scaleToCanvas, visibleWidth, visibleHeight } from '../calculator.js';
 
+const UNIT_SIZE = 6;    // each border unit is 6x6 inches
+const SQUARE_SIZE = 2;  // each small square is 2x2 inches
+const STRIP_W = 6;      // strip width (horizontal orientation)
+const STRIP_H = 2;      // strip height
+
 export const FramePattern = {
   getParams() {
-    return [
-      { name: 'borderWidth', label: 'Border Width (in)', default: 3, min: 1, max: 20 },
-      { name: 'squaresPerSide', label: 'Squares per Side', default: 8, min: 2, max: 20 },
-    ];
+    return [];
+    // No user params — unit counts are auto-derived from dimensions
+  },
+
+  // Compute derived layout from config
+  // Auto-calculates unit counts and adjusts top hem to absorb remainder
+  _layout(config) {
+    const borderDepth = UNIT_SIZE; // one unit deep on each side
+
+    // Width: available visible width = total width - side hems
+    // Must fit whole units across; extra goes into side hems equally
+    const availW = config.width - config.hemSides * 2;
+    const unitsAcross = Math.max(3, Math.floor(availW / UNIT_SIZE));
+    const vw = unitsAcross * UNIT_SIZE;
+    const extraSideHem = (availW - vw) / 2; // split leftover evenly into side hems
+    const effectiveHemSides = config.hemSides + extraSideHem;
+
+    // Height: available = total height - hemBottom - 2*borderDepth
+    // Side units fill the middle; remainder absorbed into top hem (up to 3" extra)
+    const baseTopHem = config.hemTop; // normally 3"
+    const availH = config.height - baseTopHem - config.hemBottom;
+    const unitsTall = Math.max(1, Math.floor((availH - 2 * borderDepth) / UNIT_SIZE));
+    const vh = 2 * borderDepth + unitsTall * UNIT_SIZE;
+    const effectiveHemTop = config.height - config.hemBottom - vh; // top hem absorbs the rest
+
+    return {
+      unitsAcross, unitsTall, vw, vh, borderDepth,
+      effectiveHemSides, effectiveHemTop,
+    };
   },
 
   getZones(config) {
     const { scale, offsetX, offsetY } = scaleToCanvas(config, config._canvasW || 600, config._canvasH || 800);
-    const vw = visibleWidth(config);
-    const vh = visibleHeight(config);
-    const bw = config.params.borderWidth || 3;
-    const sps = config.params.squaresPerSide || 8;
+    const layout = this._layout(config);
+    const { unitsAcross, unitsTall, borderDepth } = layout;
 
-    const hemX = config.hemSides * scale;
-    const hemY = config.hemTop * scale;
-
+    const hemX = layout.effectiveHemSides;
+    const hemY = layout.effectiveHemTop;
     const zones = [];
 
+    // Helper: add zones for a horizontal border unit at grid position (ux, uy)
+    // outerOnTop=true means strip-squares-strip from top to bottom
+    // outerOnTop=false means strip-squares-strip from bottom to top (mirrored)
+    function addHUnit(ux, uy, unitIndex, side, outerOnTop) {
+      const baseX = hemX + ux * UNIT_SIZE;
+      const baseY = hemY + uy * UNIT_SIZE;
+
+      const outerStripY = outerOnTop ? baseY : baseY + SQUARE_SIZE + STRIP_H;
+      const squaresY = outerOnTop ? baseY + STRIP_H : baseY + STRIP_H;
+      const innerStripY = outerOnTop ? baseY + STRIP_H + SQUARE_SIZE : baseY;
+
+      // Outer strip
+      zones.push({
+        id: `${side}-unit${unitIndex}-outer-strip`,
+        type: 'strip',
+        x: offsetX + baseX * scale,
+        y: offsetY + outerStripY * scale,
+        w: STRIP_W * scale,
+        h: STRIP_H * scale,
+      });
+
+      // 3 squares
+      for (let s = 0; s < 3; s++) {
+        zones.push({
+          id: `${side}-unit${unitIndex}-sq${s}`,
+          type: 'square',
+          x: offsetX + (baseX + s * SQUARE_SIZE) * scale,
+          y: offsetY + squaresY * scale,
+          w: SQUARE_SIZE * scale,
+          h: SQUARE_SIZE * scale,
+        });
+      }
+
+      // Inner strip
+      zones.push({
+        id: `${side}-unit${unitIndex}-inner-strip`,
+        type: 'strip',
+        x: offsetX + baseX * scale,
+        y: offsetY + innerStripY * scale,
+        w: STRIP_W * scale,
+        h: STRIP_H * scale,
+      });
+    }
+
+    // Helper: add zones for a vertical (rotated) border unit
+    // outerOnLeft=true means strip-squares-strip from left to right
+    function addVUnit(ux, uy, unitIndex, side, outerOnLeft) {
+      const baseX = hemX + ux * UNIT_SIZE;
+      const baseY = hemY + uy * UNIT_SIZE;
+
+      const outerStripX = outerOnLeft ? baseX : baseX + SQUARE_SIZE + STRIP_H;
+      const squaresX = outerOnLeft ? baseX + STRIP_H : baseX + STRIP_H;
+      const innerStripX = outerOnLeft ? baseX + STRIP_H + SQUARE_SIZE : baseX;
+
+      // Outer strip (vertical: 2 wide x 6 tall)
+      zones.push({
+        id: `${side}-unit${unitIndex}-outer-strip`,
+        type: 'strip',
+        x: offsetX + outerStripX * scale,
+        y: offsetY + baseY * scale,
+        w: STRIP_H * scale,  // 2" wide
+        h: STRIP_W * scale,  // 6" tall
+      });
+
+      // 3 squares (stacked vertically)
+      for (let s = 0; s < 3; s++) {
+        zones.push({
+          id: `${side}-unit${unitIndex}-sq${s}`,
+          type: 'square',
+          x: offsetX + squaresX * scale,
+          y: offsetY + (baseY + s * SQUARE_SIZE) * scale,
+          w: SQUARE_SIZE * scale,
+          h: SQUARE_SIZE * scale,
+        });
+      }
+
+      // Inner strip (vertical: 2 wide x 6 tall)
+      zones.push({
+        id: `${side}-unit${unitIndex}-inner-strip`,
+        type: 'strip',
+        x: offsetX + innerStripX * scale,
+        y: offsetY + baseY * scale,
+        w: STRIP_H * scale,
+        h: STRIP_W * scale,
+      });
+    }
+
+    // Top border: units across, outer strip on top
+    for (let i = 0; i < unitsAcross; i++) {
+      addHUnit(i, 0, i, 'top', true);
+    }
+
+    // Bottom border: units across, outer strip on bottom (mirrored)
+    for (let i = 0; i < unitsAcross; i++) {
+      addHUnit(i, 1 + unitsTall, i, 'bottom', false);
+    }
+
+    // Left border: units stacked, outer strip on left
+    for (let i = 0; i < unitsTall; i++) {
+      addVUnit(0, 1 + i, i, 'left', true);
+    }
+
+    // Right border: units stacked, outer strip on right
+    for (let i = 0; i < unitsTall; i++) {
+      addVUnit(unitsAcross - 1, 1 + i, i, 'right', false);
+    }
+
     // Center panel
-    const cx = offsetX + hemX + bw * scale;
-    const cy = offsetY + hemY + bw * scale;
-    const cw = (vw - 2 * bw) * scale;
-    const ch = (vh - 2 * bw) * scale;
-    zones.push({ id: 'center', x: cx, y: cy, w: cw, h: ch });
-
-    // Border squares and bars
-    // Top and bottom borders
-    const hBarCount = sps;
-    const hSquareSize = bw;
-    const hBarLen = (vw - 2 * bw) / hBarCount;
-
-    for (let i = 0; i < hBarCount; i++) {
-      // Top bar
-      zones.push({
-        id: `bar-top-${i}`,
-        x: offsetX + hemX + bw * scale + i * hBarLen * scale,
-        y: offsetY + hemY,
-        w: hBarLen * scale,
-        h: bw * scale,
-      });
-      // Bottom bar
-      zones.push({
-        id: `bar-bottom-${i}`,
-        x: offsetX + hemX + bw * scale + i * hBarLen * scale,
-        y: offsetY + hemY + (vh - bw) * scale,
-        w: hBarLen * scale,
-        h: bw * scale,
-      });
-    }
-
-    // Left and right borders
-    const vBarCount = sps;
-    const vBarLen = (vh - 2 * bw) / vBarCount;
-
-    for (let i = 0; i < vBarCount; i++) {
-      // Left bar
-      zones.push({
-        id: `bar-left-${i}`,
-        x: offsetX + hemX,
-        y: offsetY + hemY + bw * scale + i * vBarLen * scale,
-        w: bw * scale,
-        h: vBarLen * scale,
-      });
-      // Right bar
-      zones.push({
-        id: `bar-right-${i}`,
-        x: offsetX + hemX + (vw - bw) * scale,
-        y: offsetY + hemY + bw * scale + i * vBarLen * scale,
-        w: bw * scale,
-        h: vBarLen * scale,
-      });
-    }
-
-    // Corner squares
-    const cs = bw * scale;
-    zones.push({ id: 'corner-tl', x: offsetX + hemX, y: offsetY + hemY, w: cs, h: cs });
-    zones.push({ id: 'corner-tr', x: offsetX + hemX + (vw - bw) * scale, y: offsetY + hemY, w: cs, h: cs });
-    zones.push({ id: 'corner-bl', x: offsetX + hemX, y: offsetY + hemY + (vh - bw) * scale, w: cs, h: cs });
-    zones.push({ id: 'corner-br', x: offsetX + hemX + (vw - bw) * scale, y: offsetY + hemY + (vh - bw) * scale, w: cs, h: cs });
+    const centerX = hemX + UNIT_SIZE;
+    const centerY = hemY + UNIT_SIZE;
+    const centerW = (unitsAcross - 2) * UNIT_SIZE;
+    const centerH = unitsTall * UNIT_SIZE;
+    zones.push({
+      id: 'center',
+      type: 'center',
+      x: offsetX + centerX * scale,
+      y: offsetY + centerY * scale,
+      w: centerW * scale,
+      h: centerH * scale,
+    });
 
     return zones;
   },
 
   render(ctx, config, canvasW, canvasH) {
-    const { scale, offsetX, offsetY } = scaleToCanvas(config, canvasW, canvasH);
-    const vw = visibleWidth(config);
-    const vh = visibleHeight(config);
-
-    // Store canvas dimensions for getZones
     config._canvasW = canvasW;
     config._canvasH = canvasH;
-
-    const zones = this.getZones(config);
+    const { scale, offsetX, offsetY } = scaleToCanvas(config, canvasW, canvasH);
 
     // Draw outer hem border
     ctx.strokeStyle = '#aaa';
     ctx.lineWidth = 1;
     ctx.strokeRect(offsetX, offsetY, config.width * scale, config.height * scale);
 
-    // Draw hem area (light fill between outer edge and visible area)
+    // Hem area background
     ctx.fillStyle = '#f8f8f0';
     ctx.fillRect(offsetX, offsetY, config.width * scale, config.height * scale);
 
+    const zones = this.getZones(config);
+
     // Draw each zone
     for (const zone of zones) {
-      const color = config.zoneColors[zone.id];
-      ctx.fillStyle = color ? color.hex : '#e8e8e8';
+      const color = config.zoneColors?.[zone.id];
+
+      // Default colors by type
+      let defaultColor;
+      if (zone.type === 'center') defaultColor = '#f0ece4';
+      else if (zone.type === 'square') defaultColor = '#d8d0c4';
+      else if (zone.type === 'strip') defaultColor = '#e8e4dc';
+      else defaultColor = '#e8e8e8';
+
+      ctx.fillStyle = color ? color.hex : defaultColor;
       ctx.fillRect(zone.x, zone.y, zone.w, zone.h);
 
       // Seam lines
-      ctx.strokeStyle = '#666';
+      ctx.strokeStyle = '#888';
       ctx.lineWidth = 1;
+      ctx.setLineDash([]);
       ctx.strokeRect(zone.x, zone.y, zone.w, zone.h);
     }
 
@@ -125,7 +218,7 @@ export const FramePattern = {
       if (sel) {
         ctx.setLineDash([4, 4]);
         ctx.strokeStyle = '#e74c3c';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 3;
         ctx.strokeRect(sel.x - 1, sel.y - 1, sel.w + 2, sel.h + 2);
         ctx.setLineDash([]);
       }
@@ -133,134 +226,184 @@ export const FramePattern = {
   },
 
   calculateCuts(config) {
-    const vw = visibleWidth(config);
-    const vh = visibleHeight(config);
-    const bw = config.params.borderWidth || 3;
-    const sps = config.params.squaresPerSide || 8;
+    const layout = this._layout(config);
+    const { unitsAcross, unitsTall, effectiveHemSides, effectiveHemTop } = layout;
     const sa = config.seamAllowance;
-
     const cuts = [];
 
-    // Center panel — surrounded by border, so all edges are internal seams
-    const centerVisW = vw - 2 * bw;
-    const centerVisH = vh - 2 * bw;
-    const centerColor = config.zoneColors['center'];
+    // Center panel — all edges are internal seams
+    const centerW = (unitsAcross - 2) * UNIT_SIZE;
+    const centerH = unitsTall * UNIT_SIZE;
+    const centerColor = config.zoneColors?.['center'];
     cuts.push({
       name: 'Center panel',
       quantity: 1,
       color: centerColor ? centerColor.hex : null,
       colorName: centerColor ? centerColor.name : null,
-      cutWidth: centerVisW + 2 * sa,
-      cutHeight: centerVisH + 2 * sa,
-      visibleWidth: centerVisW,
-      visibleHeight: centerVisH,
+      cutWidth: centerW + 2 * sa,
+      cutHeight: centerH + 2 * sa,
+      visibleWidth: centerW,
+      visibleHeight: centerH,
     });
 
-    // Top/bottom bars
-    const hBarVisW = (vw - 2 * bw) / sps;
-    const hBarVisH = bw;
+    // Border squares (2x2 visible) — all have internal seams on all sides
+    // except edge squares which have hem on one or two sides
+    // For simplicity, categorize by position:
 
-    // Top bars (top edge gets hemTop, bottom gets seam)
-    const topBarColor = config.zoneColors['bar-top-0'];
+    // Top unit squares — top edge has hem, other edges internal seam
+    const topSqColor = config.zoneColors?.['top-unit0-sq0'];
     cuts.push({
-      name: 'Top border bar',
-      quantity: sps,
-      color: topBarColor ? topBarColor.hex : null,
-      colorName: topBarColor ? topBarColor.name : null,
-      cutWidth: hBarVisW + 2 * sa,
-      cutHeight: hBarVisH + config.hemTop + sa,
-      visibleWidth: hBarVisW,
-      visibleHeight: hBarVisH,
+      name: 'Top border square',
+      quantity: 3 * unitsAcross,
+      color: topSqColor ? topSqColor.hex : null,
+      colorName: topSqColor ? topSqColor.name : null,
+      cutWidth: SQUARE_SIZE + 2 * sa,
+      cutHeight: SQUARE_SIZE + 2 * sa,
+      visibleWidth: SQUARE_SIZE,
+      visibleHeight: SQUARE_SIZE,
     });
 
-    // Bottom bars
-    const bottomBarColor = config.zoneColors['bar-bottom-0'];
+    // Bottom unit squares
+    const botSqColor = config.zoneColors?.['bottom-unit0-sq0'];
     cuts.push({
-      name: 'Bottom border bar',
-      quantity: sps,
-      color: bottomBarColor ? bottomBarColor.hex : null,
-      colorName: bottomBarColor ? bottomBarColor.name : null,
-      cutWidth: hBarVisW + 2 * sa,
-      cutHeight: hBarVisH + config.hemBottom + sa,
-      visibleWidth: hBarVisW,
-      visibleHeight: hBarVisH,
+      name: 'Bottom border square',
+      quantity: 3 * unitsAcross,
+      color: botSqColor ? botSqColor.hex : null,
+      colorName: botSqColor ? botSqColor.name : null,
+      cutWidth: SQUARE_SIZE + 2 * sa,
+      cutHeight: SQUARE_SIZE + 2 * sa,
+      visibleWidth: SQUARE_SIZE,
+      visibleHeight: SQUARE_SIZE,
     });
 
-    // Left/right bars
-    const vBarVisW = bw;
-    const vBarVisH = (vh - 2 * bw) / sps;
-
-    const leftBarColor = config.zoneColors['bar-left-0'];
+    // Left unit squares
+    const leftSqColor = config.zoneColors?.['left-unit0-sq0'];
     cuts.push({
-      name: 'Left border bar',
-      quantity: sps,
-      color: leftBarColor ? leftBarColor.hex : null,
-      colorName: leftBarColor ? leftBarColor.name : null,
-      cutWidth: vBarVisW + config.hemSides + sa,
-      cutHeight: vBarVisH + 2 * sa,
-      visibleWidth: vBarVisW,
-      visibleHeight: vBarVisH,
+      name: 'Left border square',
+      quantity: 3 * unitsTall,
+      color: leftSqColor ? leftSqColor.hex : null,
+      colorName: leftSqColor ? leftSqColor.name : null,
+      cutWidth: SQUARE_SIZE + 2 * sa,
+      cutHeight: SQUARE_SIZE + 2 * sa,
+      visibleWidth: SQUARE_SIZE,
+      visibleHeight: SQUARE_SIZE,
     });
 
-    const rightBarColor = config.zoneColors['bar-right-0'];
+    // Right unit squares
+    const rightSqColor = config.zoneColors?.['right-unit0-sq0'];
     cuts.push({
-      name: 'Right border bar',
-      quantity: sps,
-      color: rightBarColor ? rightBarColor.hex : null,
-      colorName: rightBarColor ? rightBarColor.name : null,
-      cutWidth: vBarVisW + config.hemSides + sa,
-      cutHeight: vBarVisH + 2 * sa,
-      visibleWidth: vBarVisW,
-      visibleHeight: vBarVisH,
+      name: 'Right border square',
+      quantity: 3 * unitsTall,
+      color: rightSqColor ? rightSqColor.hex : null,
+      colorName: rightSqColor ? rightSqColor.name : null,
+      cutWidth: SQUARE_SIZE + 2 * sa,
+      cutHeight: SQUARE_SIZE + 2 * sa,
+      visibleWidth: SQUARE_SIZE,
+      visibleHeight: SQUARE_SIZE,
     });
 
-    // Corner squares — each has two outer edges
-    const cornerColor = config.zoneColors['corner-tl'];
+    // Top outer strips — top edge = hemTop
+    const topOuterColor = config.zoneColors?.['top-unit0-outer-strip'];
     cuts.push({
-      name: 'Top-left corner',
-      quantity: 1,
-      color: cornerColor ? cornerColor.hex : null,
-      colorName: cornerColor ? cornerColor.name : null,
-      cutWidth: bw + config.hemSides + sa,
-      cutHeight: bw + config.hemTop + sa,
-      visibleWidth: bw,
-      visibleHeight: bw,
+      name: 'Top outer strip',
+      quantity: unitsAcross,
+      color: topOuterColor ? topOuterColor.hex : null,
+      colorName: topOuterColor ? topOuterColor.name : null,
+      cutWidth: STRIP_W + 2 * sa,
+      cutHeight: STRIP_H + effectiveHemTop + sa,
+      visibleWidth: STRIP_W,
+      visibleHeight: STRIP_H,
     });
 
-    const trColor = config.zoneColors['corner-tr'];
+    // Top inner strips — all internal seams
+    const topInnerColor = config.zoneColors?.['top-unit0-inner-strip'];
     cuts.push({
-      name: 'Top-right corner',
-      quantity: 1,
-      color: trColor ? trColor.hex : null,
-      colorName: trColor ? trColor.name : null,
-      cutWidth: bw + config.hemSides + sa,
-      cutHeight: bw + config.hemTop + sa,
-      visibleWidth: bw,
-      visibleHeight: bw,
+      name: 'Top inner strip',
+      quantity: unitsAcross,
+      color: topInnerColor ? topInnerColor.hex : null,
+      colorName: topInnerColor ? topInnerColor.name : null,
+      cutWidth: STRIP_W + 2 * sa,
+      cutHeight: STRIP_H + 2 * sa,
+      visibleWidth: STRIP_W,
+      visibleHeight: STRIP_H,
     });
 
-    const blColor = config.zoneColors['corner-bl'];
+    // Bottom outer strips — bottom edge = hemBottom
+    const botOuterColor = config.zoneColors?.['bottom-unit0-outer-strip'];
     cuts.push({
-      name: 'Bottom-left corner',
-      quantity: 1,
-      color: blColor ? blColor.hex : null,
-      colorName: blColor ? blColor.name : null,
-      cutWidth: bw + config.hemSides + sa,
-      cutHeight: bw + config.hemBottom + sa,
-      visibleWidth: bw,
-      visibleHeight: bw,
+      name: 'Bottom outer strip',
+      quantity: unitsAcross,
+      color: botOuterColor ? botOuterColor.hex : null,
+      colorName: botOuterColor ? botOuterColor.name : null,
+      cutWidth: STRIP_W + 2 * sa,
+      cutHeight: STRIP_H + config.hemBottom + sa,  // bottom hem stays fixed
+      visibleWidth: STRIP_W,
+      visibleHeight: STRIP_H,
     });
 
-    const brColor = config.zoneColors['corner-br'];
+    // Bottom inner strips
+    const botInnerColor = config.zoneColors?.['bottom-unit0-inner-strip'];
     cuts.push({
-      name: 'Bottom-right corner',
-      quantity: 1,
-      color: brColor ? brColor.hex : null,
-      colorName: brColor ? brColor.name : null,
-      cutWidth: bw + config.hemSides + sa,
-      cutHeight: bw + config.hemBottom + sa,
-      visibleWidth: bw,
-      visibleHeight: bw,
+      name: 'Bottom inner strip',
+      quantity: unitsAcross,
+      color: botInnerColor ? botInnerColor.hex : null,
+      colorName: botInnerColor ? botInnerColor.name : null,
+      cutWidth: STRIP_W + 2 * sa,
+      cutHeight: STRIP_H + 2 * sa,
+      visibleWidth: STRIP_W,
+      visibleHeight: STRIP_H,
+    });
+
+    // Left outer strips — left edge = hemSides
+    const leftOuterColor = config.zoneColors?.['left-unit0-outer-strip'];
+    cuts.push({
+      name: 'Left outer strip',
+      quantity: unitsTall,
+      color: leftOuterColor ? leftOuterColor.hex : null,
+      colorName: leftOuterColor ? leftOuterColor.name : null,
+      cutWidth: STRIP_H + effectiveHemSides + sa,
+      cutHeight: STRIP_W + 2 * sa,
+      visibleWidth: STRIP_H,
+      visibleHeight: STRIP_W,
+    });
+
+    // Left inner strips
+    const leftInnerColor = config.zoneColors?.['left-unit0-inner-strip'];
+    cuts.push({
+      name: 'Left inner strip',
+      quantity: unitsTall,
+      color: leftInnerColor ? leftInnerColor.hex : null,
+      colorName: leftInnerColor ? leftInnerColor.name : null,
+      cutWidth: STRIP_H + 2 * sa,
+      cutHeight: STRIP_W + 2 * sa,
+      visibleWidth: STRIP_H,
+      visibleHeight: STRIP_W,
+    });
+
+    // Right outer strips — right edge = hemSides
+    const rightOuterColor = config.zoneColors?.['right-unit0-outer-strip'];
+    cuts.push({
+      name: 'Right outer strip',
+      quantity: unitsTall,
+      color: rightOuterColor ? rightOuterColor.hex : null,
+      colorName: rightOuterColor ? rightOuterColor.name : null,
+      cutWidth: STRIP_H + effectiveHemSides + sa,
+      cutHeight: STRIP_W + 2 * sa,
+      visibleWidth: STRIP_H,
+      visibleHeight: STRIP_W,
+    });
+
+    // Right inner strips
+    const rightInnerColor = config.zoneColors?.['right-unit0-inner-strip'];
+    cuts.push({
+      name: 'Right inner strip',
+      quantity: unitsTall,
+      color: rightInnerColor ? rightInnerColor.hex : null,
+      colorName: rightInnerColor ? rightInnerColor.name : null,
+      cutWidth: STRIP_H + 2 * sa,
+      cutHeight: STRIP_W + 2 * sa,
+      visibleWidth: STRIP_H,
+      visibleHeight: STRIP_W,
     });
 
     return cuts;

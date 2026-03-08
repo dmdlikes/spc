@@ -18,7 +18,7 @@
       <label for="pattern-select">Pattern</label>
       <select id="pattern-select">
         <option value="tile">Tile</option>
-        <option value="frame">Frame</option>
+        <option value="frame">Square</option>
         <option value="diamond">Diamond</option>
         <option value="nested">Nested Rectangle</option>
       </select>
@@ -46,10 +46,25 @@
       <div id="pattern-params"></div>
 
       <button id="btn-export">Export PDF</button>
+
+      <fieldset style="margin-top: 16px;">
+        <legend>Saved Designs</legend>
+        <select id="design-select" style="width:100%; margin-bottom:8px;">
+          <option value="">— Load a design —</option>
+        </select>
+        <div style="display:flex; gap:4px;">
+          <button id="btn-save" style="flex:1;">Save</button>
+          <button id="btn-delete-design" style="flex:0 0 auto;">Delete</button>
+        </div>
+      </fieldset>
+
+      <div id="zone-indicator" style="margin-top:12px; font-size:12px; color:#666;">
+        Use arrow keys to navigate zones
+      </div>
     </aside>
 
     <section id="preview-panel">
-      <canvas id="preview-canvas" width="600" height="800"></canvas>
+      <canvas id="preview-canvas" width="600" height="800" tabindex="0"></canvas>
       <div id="cut-sheet"></div>
     </section>
 
