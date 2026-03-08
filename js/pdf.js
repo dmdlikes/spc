@@ -1,4 +1,5 @@
 // Pojagi Studio — PDF Export
+import { fmtDim } from './calculator.js';
 
 export function exportPDF(config, pattern, canvasElement) {
   const { jsPDF } = window.jspdf;
@@ -40,7 +41,30 @@ export function exportPDF(config, pattern, canvasElement) {
   doc.text(`Overall: ${config.width}" W x ${config.height}" H`, margin, y);
   y += 16;
   doc.text(`Hems — Sides: ${config.hemSides}"  Top: ${config.hemTop}"  Bottom: ${config.hemBottom}"  |  Seam: ${config.seamAllowance}"`, margin, y);
-  y += 24;
+  y += 16;
+
+  // Tile layout summary (if pattern has _layout)
+  if (pattern._layout) {
+    const layout = pattern._layout(config);
+    if (layout.tileW && layout.tileH) {
+      doc.text(`${layout.cols} × ${layout.rows} tiles, each ${fmtDim(layout.tileW)}" × ${fmtDim(layout.tileH)}"`, margin, y);
+      y += 16;
+      const actualW = layout.cols * layout.tileW;
+      const actualH = layout.rows * layout.tileH;
+      const diffW = config.width - actualW;
+      const diffH = config.height - actualH;
+      if (Math.abs(diffW) > 0.001 || Math.abs(diffH) > 0.001) {
+        const parts = [];
+        if (Math.abs(diffW) > 0.001) parts.push(`${fmtDim(diffW)}" width`);
+        if (Math.abs(diffH) > 0.001) parts.push(`${fmtDim(diffH)}" height`);
+        doc.setTextColor(192, 57, 43);
+        doc.text(`Remainder: ${parts.join(', ')}`, margin, y);
+        doc.setTextColor(0);
+        y += 16;
+      }
+    }
+  }
+  y += 8;
 
   // Color legend
   const usedColors = {};
@@ -76,12 +100,34 @@ export function exportPDF(config, pattern, canvasElement) {
   doc.setFontSize(11);
   doc.text(`Pattern: ${patternName}  |  ${config.width}" x ${config.height}"`, margin, margin + 20);
 
+  let cutY = margin + 36;
+  if (pattern._layout) {
+    const layout = pattern._layout(config);
+    if (layout.tileW && layout.tileH) {
+      doc.text(`${layout.cols} × ${layout.rows} tiles, each ${fmtDim(layout.tileW)}" × ${fmtDim(layout.tileH)}"`, margin, cutY);
+      cutY += 14;
+      const actualW = layout.cols * layout.tileW;
+      const actualH = layout.rows * layout.tileH;
+      const diffW = config.width - actualW;
+      const diffH = config.height - actualH;
+      if (Math.abs(diffW) > 0.001 || Math.abs(diffH) > 0.001) {
+        const parts = [];
+        if (Math.abs(diffW) > 0.001) parts.push(`${fmtDim(diffW)}" width`);
+        if (Math.abs(diffH) > 0.001) parts.push(`${fmtDim(diffH)}" height`);
+        doc.setTextColor(192, 57, 43);
+        doc.text(`Remainder: ${parts.join(', ')}`, margin, cutY);
+        doc.setTextColor(0);
+        cutY += 14;
+      }
+    }
+  }
+
   const cuts = pattern.calculateCuts(config);
 
   // Table header
   const colX = [margin, margin + 160, margin + 195, margin + 280, margin + 350, margin + 420];
   const headers = ['Piece', 'Qty', 'Color', 'Cut W', 'Cut H', 'Visible'];
-  y = margin + 48;
+  y = cutY + 12;
   doc.setFontSize(9);
   doc.setFont(undefined, 'bold');
   for (let i = 0; i < headers.length; i++) {
@@ -110,10 +156,10 @@ export function exportPDF(config, pattern, canvasElement) {
       doc.text('—', colX[2], y);
     }
 
-    doc.text(`${cut.cutWidth.toFixed(2)}"`, colX[3], y);
-    doc.text(`${cut.cutHeight.toFixed(2)}"`, colX[4], y);
+    doc.text(`${fmtDim(cut.cutWidth)}"`, colX[3], y);
+    doc.text(`${fmtDim(cut.cutHeight)}"`, colX[4], y);
     if (cut.visibleWidth && cut.visibleHeight) {
-      doc.text(`${cut.visibleWidth.toFixed(1)}" x ${cut.visibleHeight.toFixed(1)}"`, colX[5], y);
+      doc.text(`${fmtDim(cut.visibleWidth)}" x ${fmtDim(cut.visibleHeight)}"`, colX[5], y);
     }
     y += 16;
 

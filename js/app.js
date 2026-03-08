@@ -14,7 +14,7 @@ import { renderPicker } from './picker.js';
 import { exportPDF, exportClientPDF } from './pdf.js';
 
 // Calculator
-import { scaleToCanvas } from './calculator.js';
+import { scaleToCanvas, fmtDim } from './calculator.js';
 
 // Color imports
 import { loadLibraries, renderSwatchGrid, addCustomColor } from './colors.js';
@@ -221,15 +221,6 @@ function renderCutSheetView(ctx, config, pattern) {
   ctx.restore();
 }
 
-function fmtDim(n) {
-  if (Number.isInteger(n)) return n.toString();
-  // Show fractions cleanly
-  const frac = n - Math.floor(n);
-  if (Math.abs(frac - 0.5) < 0.01) return Math.floor(n) + '.5';
-  if (Math.abs(frac - 0.25) < 0.01) return Math.floor(n) + '.25';
-  if (Math.abs(frac - 0.75) < 0.01) return Math.floor(n) + '.75';
-  return n.toFixed(2);
-}
 
 function handleCanvasClick(e) {
   const rect = canvas.getBoundingClientRect();
@@ -265,7 +256,8 @@ function readInputs() {
   // Read pattern-specific params
   const paramsDiv = document.getElementById('pattern-params');
   for (const input of paramsDiv.querySelectorAll('input')) {
-    state.params[input.dataset.param] = parseFloat(input.value);
+    const val = parseFloat(input.value);
+    if (!isNaN(val)) state.params[input.dataset.param] = val;
   }
 }
 
@@ -295,8 +287,9 @@ function onPatternChange() {
       input.value = p.default;
       input.min = p.min;
       input.max = p.max;
+      if (p.step) input.step = p.step;
       input.dataset.param = p.name;
-      input.addEventListener('input', onInputChange);
+      input.addEventListener('change', onInputChange);
       paramsDiv.appendChild(label);
       paramsDiv.appendChild(input);
     }
@@ -317,7 +310,30 @@ export function updateCutSheet() {
   const config = getConfig();
   const cuts = pattern.calculateCuts(config);
 
-  let html = '<h3>Cut Sheet</h3><table>';
+  let html = '<h3>Cut Sheet</h3>';
+
+  // Show tile layout summary with actual vs entered dimensions
+  if (pattern._layout) {
+    const layout = pattern._layout(config);
+    if (layout.tileW && layout.tileH) {
+      const actualW = layout.cols * layout.tileW;
+      const actualH = layout.rows * layout.tileH;
+      const diffW = config.width - actualW;
+      const diffH = config.height - actualH;
+      html += `<p style="font-size:12px;margin:4px 0;">`;
+      html += `<strong>${layout.cols} × ${layout.rows}</strong> tiles, each ${fmtDim(layout.tileW)}" × ${fmtDim(layout.tileH)}"`;
+      html += `<br>Tiled area: ${fmtDim(actualW)}" × ${fmtDim(actualH)}"`;
+      if (Math.abs(diffW) > 0.001 || Math.abs(diffH) > 0.001) {
+        const diffs = [];
+        if (Math.abs(diffW) > 0.001) diffs.push(`${fmtDim(diffW)}" width`);
+        if (Math.abs(diffH) > 0.001) diffs.push(`${fmtDim(diffH)}" height`);
+        html += ` <span style="color:#c0392b;">(${diffs.join(', ')} remainder)</span>`;
+      }
+      html += `</p>`;
+    }
+  }
+
+  html += '<table>';
   html += '<tr><th>Piece</th><th>Qty</th><th>Color</th><th>Cut W</th><th>Cut H</th></tr>';
   for (const cut of cuts) {
     const colorSwatch = cut.color
@@ -327,8 +343,8 @@ export function updateCutSheet() {
       <td>${cut.name}</td>
       <td>${cut.quantity}</td>
       <td>${colorSwatch}${cut.colorName || '—'}</td>
-      <td>${cut.cutWidth.toFixed(2)}"</td>
-      <td>${cut.cutHeight.toFixed(2)}"</td>
+      <td>${fmtDim(cut.cutWidth)}"</td>
+      <td>${fmtDim(cut.cutHeight)}"</td>
     </tr>`;
   }
   html += '</table>';
@@ -509,8 +525,9 @@ function loadDesign(name) {
       input.value = state.params[p.name] ?? p.default;
       input.min = p.min;
       input.max = p.max;
+      if (p.step) input.step = p.step;
       input.dataset.param = p.name;
-      input.addEventListener('input', onInputChange);
+      input.addEventListener('change', onInputChange);
       paramsDiv.appendChild(label);
       paramsDiv.appendChild(input);
     }
@@ -552,7 +569,7 @@ async function init() {
   // Event listeners
   document.getElementById('pattern-select').addEventListener('change', onPatternChange);
   for (const id of ['input-width', 'input-height', 'input-hem-sides', 'input-hem-top', 'input-hem-bottom', 'input-seam']) {
-    document.getElementById(id).addEventListener('input', onInputChange);
+    document.getElementById(id).addEventListener('change', onInputChange);
   }
   canvas.addEventListener('click', handleCanvasClick);
 

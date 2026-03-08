@@ -95,7 +95,18 @@ export function drawDimensions(ctx, zones, config, scale, offsetX, offsetY) {
   ctx.restore();
 }
 
-function fmtDim(n) {
+const FRACTIONS = {
+  0.125: '⅛', 0.25: '¼', 0.375: '⅜', 0.5: '½',
+  0.625: '⅝', 0.75: '¾', 0.875: '⅞',
+};
+
+export function fmtDim(n) {
   if (Number.isInteger(n)) return n.toString();
-  return n.toFixed(1);
+  const whole = Math.floor(n);
+  const frac = Math.round((n - whole) * 8) / 8;
+  if (frac === 0) return whole.toString();
+  if (frac === 1) return (whole + 1).toString();
+  const symbol = FRACTIONS[frac];
+  if (symbol) return whole > 0 ? `${whole}${symbol}` : symbol;
+  return n.toFixed(2);
 }
