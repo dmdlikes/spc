@@ -111,9 +111,8 @@ header h1 {
   font-size: 14px;
 }
 
-#btn-export {
-  margin-top: 20px;
-  width: 100%;
+#btn-export,
+#btn-client-pdf {
   padding: 10px;
   background: #2c3e50;
   color: #fff;
@@ -123,7 +122,8 @@ header h1 {
   cursor: pointer;
 }
 
-#btn-export:hover {
+#btn-export:hover,
+#btn-client-pdf:hover {
   background: #34495e;
 }
 
@@ -156,6 +156,23 @@ header h1 {
   border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 14px;
+}
+
+/* View toggle */
+.view-btn {
+  padding: 6px 16px;
+  border: 1px solid #ccc;
+  background: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 4px 4px 0 0;
+  margin-right: 2px;
+}
+
+.view-btn.active {
+  background: #2c3e50;
+  color: #fff;
+  border-color: #2c3e50;
 }
 
 /* Canvas */

@@ -55,10 +55,11 @@ export const TilePattern = {
     const tileW = vw / cols;
     const tileH = vh / rows;
 
-    // Draw outer hem area as a light border/frame
-    ctx.strokeStyle = '#aaa';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(offsetX, offsetY, config.width * scale, config.height * scale);
+    if (!config.hideHem) {
+      ctx.strokeStyle = '#aaa';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(offsetX, offsetY, config.width * scale, config.height * scale);
+    }
 
     // Draw each tile
     for (let r = 0; r < rows; r++) {

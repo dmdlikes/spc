@@ -1,176 +1,122 @@
-// Square Pattern — center panel with border of 6x6 units
-// Each unit: strip (outer) / 3 squares / strip (inner)
-// See docs/patterns/square-pattern-notes.md for full spec
+// Frame Pattern — 4 corner units + connecting strips + center panel
+// See docs/patterns/frame-pattern-notes.md for full spec
 
-import { scaleToCanvas, visibleWidth, visibleHeight } from '../calculator.js';
-
-const UNIT_SIZE = 6;    // each border unit is 6x6 inches
-const SQUARE_SIZE = 2;  // each small square is 2x2 inches
-const STRIP_W = 6;      // strip width (horizontal orientation)
-const STRIP_H = 2;      // strip height
+import { scaleToCanvas, drawDimensions } from '../calculator.js';
 
 export const FramePattern = {
   getParams() {
     return [];
-    // No user params — unit counts are auto-derived from dimensions
   },
 
-  // Compute derived layout from config
-  // Auto-calculates unit counts and adjusts top hem to absorb remainder
   _layout(config) {
-    const borderDepth = UNIT_SIZE; // one unit deep on each side
+    const hemSides = config.hemSides;
+    const hemTop = config.hemTop;
+    const hemBottom = config.hemBottom;
 
-    // Width: available visible width = total width - side hems
-    // Must fit whole units across; extra goes into side hems equally
-    const availW = config.width - config.hemSides * 2;
-    const unitsAcross = Math.max(3, Math.floor(availW / UNIT_SIZE));
-    const vw = unitsAcross * UNIT_SIZE;
-    const extraSideHem = (availW - vw) / 2; // split leftover evenly into side hems
-    const effectiveHemSides = config.hemSides + extraSideHem;
+    const visW = config.width - hemSides * 2;
+    const visH = config.height - hemTop - hemBottom;
 
-    // Height: available = total height - hemBottom - 2*borderDepth
-    // Side units fill the middle; remainder absorbed into top hem (up to 3" extra)
-    const baseTopHem = config.hemTop; // normally 3"
-    const availH = config.height - baseTopHem - config.hemBottom;
-    const unitsTall = Math.max(1, Math.floor((availH - 2 * borderDepth) / UNIT_SIZE));
-    const vh = 2 * borderDepth + unitsTall * UNIT_SIZE;
-    const effectiveHemTop = config.height - config.hemBottom - vh; // top hem absorbs the rest
+    // Corner unit size
+    let cornerSize = 8;
+    let innerCenter = 4;
+    if (visW < 16) {
+      cornerSize = 7;
+    }
+    if (visW < 15) {
+      innerCenter = 3;
+    }
+    const innerCornerSq = 2; // small corner squares are always 2x2
+    const innerStrip = innerCenter; // strip length matches center
+    // Corner = innerCornerSq + innerCenter + innerCornerSq = 2 + 4 + 2 = 8 (or 2+3+2=7)
+
+    // Center panel dimensions
+    const centerW = visW - 2 * cornerSize;
+    const centerH = visH - 2 * cornerSize;
+
+    // Connecting strips: the middle strip stretches, outer strips are fixed at 2"
+    const connOuterStrip = innerCornerSq; // 2"
+    const connMiddleStripW = centerW; // horizontal connectors stretch to center width
+    const connMiddleStripH = centerH; // vertical connectors stretch to center height
+    const connMiddle = innerCenter; // 4" (or 3") — the thickness of the middle strip
 
     return {
-      unitsAcross, unitsTall, vw, vh, borderDepth,
-      effectiveHemSides, effectiveHemTop,
+      visW, visH, cornerSize, innerCenter, innerCornerSq,
+      centerW, centerH, connOuterStrip, connMiddle,
+      hemSides, hemTop, hemBottom,
     };
   },
 
   getZones(config) {
     const { scale, offsetX, offsetY } = scaleToCanvas(config, config._canvasW || 600, config._canvasH || 800);
-    const layout = this._layout(config);
-    const { unitsAcross, unitsTall, borderDepth } = layout;
-
-    const hemX = layout.effectiveHemSides;
-    const hemY = layout.effectiveHemTop;
+    const L = this._layout(config);
+    const hx = L.hemSides;
+    const hy = L.hemTop;
     const zones = [];
+    const cs = L.cornerSize;
+    const ic = L.innerCenter;
+    const sq = L.innerCornerSq;
 
-    // Helper: add zones for a horizontal border unit at grid position (ux, uy)
-    // outerOnTop=true means strip-squares-strip from top to bottom
-    // outerOnTop=false means strip-squares-strip from bottom to top (mirrored)
-    function addHUnit(ux, uy, unitIndex, side, outerOnTop) {
-      const baseX = hemX + ux * UNIT_SIZE;
-      const baseY = hemY + uy * UNIT_SIZE;
-
-      const outerStripY = outerOnTop ? baseY : baseY + SQUARE_SIZE + STRIP_H;
-      const squaresY = outerOnTop ? baseY + STRIP_H : baseY + STRIP_H;
-      const innerStripY = outerOnTop ? baseY + STRIP_H + SQUARE_SIZE : baseY;
-
-      // Outer strip
-      zones.push({
-        id: `${side}-unit${unitIndex}-outer-strip`,
-        type: 'strip',
-        x: offsetX + baseX * scale,
-        y: offsetY + outerStripY * scale,
-        w: STRIP_W * scale,
-        h: STRIP_H * scale,
-      });
-
-      // 3 squares
-      for (let s = 0; s < 3; s++) {
-        zones.push({
-          id: `${side}-unit${unitIndex}-sq${s}`,
-          type: 'square',
-          x: offsetX + (baseX + s * SQUARE_SIZE) * scale,
-          y: offsetY + squaresY * scale,
-          w: SQUARE_SIZE * scale,
-          h: SQUARE_SIZE * scale,
-        });
-      }
-
-      // Inner strip
-      zones.push({
-        id: `${side}-unit${unitIndex}-inner-strip`,
-        type: 'strip',
-        x: offsetX + baseX * scale,
-        y: offsetY + innerStripY * scale,
-        w: STRIP_W * scale,
-        h: STRIP_H * scale,
-      });
+    // Helper to create a zone with both pixel and inch dimensions
+    function z(id, type, inchX, inchY, inchW, inchH) {
+      return {
+        id, type,
+        x: offsetX + (hx + inchX) * scale,
+        y: offsetY + (hy + inchY) * scale,
+        w: inchW * scale,
+        h: inchH * scale,
+        visW: inchW,
+        visH: inchH,
+      };
     }
 
-    // Helper: add zones for a vertical (rotated) border unit
-    // outerOnLeft=true means strip-squares-strip from left to right
-    function addVUnit(ux, uy, unitIndex, side, outerOnLeft) {
-      const baseX = hemX + ux * UNIT_SIZE;
-      const baseY = hemY + uy * UNIT_SIZE;
+    // Helper: add the 9 sub-pieces of a corner unit
+    function addCorner(ox, oy, label) {
+      zones.push(z(`${label}-sq-tl`, 'corner-sq', ox, oy, sq, sq));
+      zones.push(z(`${label}-sq-tr`, 'corner-sq', ox + sq + ic, oy, sq, sq));
+      zones.push(z(`${label}-sq-bl`, 'corner-sq', ox, oy + sq + ic, sq, sq));
+      zones.push(z(`${label}-sq-br`, 'corner-sq', ox + sq + ic, oy + sq + ic, sq, sq));
 
-      const outerStripX = outerOnLeft ? baseX : baseX + SQUARE_SIZE + STRIP_H;
-      const squaresX = outerOnLeft ? baseX + STRIP_H : baseX + STRIP_H;
-      const innerStripX = outerOnLeft ? baseX + STRIP_H + SQUARE_SIZE : baseX;
+      zones.push(z(`${label}-hstrip-top`, 'corner-strip', ox + sq, oy, ic, sq));
+      zones.push(z(`${label}-hstrip-bot`, 'corner-strip', ox + sq, oy + sq + ic, ic, sq));
 
-      // Outer strip (vertical: 2 wide x 6 tall)
-      zones.push({
-        id: `${side}-unit${unitIndex}-outer-strip`,
-        type: 'strip',
-        x: offsetX + outerStripX * scale,
-        y: offsetY + baseY * scale,
-        w: STRIP_H * scale,  // 2" wide
-        h: STRIP_W * scale,  // 6" tall
-      });
+      zones.push(z(`${label}-vstrip-left`, 'corner-strip', ox, oy + sq, sq, ic));
+      zones.push(z(`${label}-vstrip-right`, 'corner-strip', ox + sq + ic, oy + sq, sq, ic));
 
-      // 3 squares (stacked vertically)
-      for (let s = 0; s < 3; s++) {
-        zones.push({
-          id: `${side}-unit${unitIndex}-sq${s}`,
-          type: 'square',
-          x: offsetX + squaresX * scale,
-          y: offsetY + (baseY + s * SQUARE_SIZE) * scale,
-          w: SQUARE_SIZE * scale,
-          h: SQUARE_SIZE * scale,
-        });
-      }
-
-      // Inner strip (vertical: 2 wide x 6 tall)
-      zones.push({
-        id: `${side}-unit${unitIndex}-inner-strip`,
-        type: 'strip',
-        x: offsetX + innerStripX * scale,
-        y: offsetY + baseY * scale,
-        w: STRIP_H * scale,
-        h: STRIP_W * scale,
-      });
+      zones.push(z(`${label}-center`, 'corner-center', ox + sq, oy + sq, ic, ic));
     }
 
-    // Top border: units across, outer strip on top
-    for (let i = 0; i < unitsAcross; i++) {
-      addHUnit(i, 0, i, 'top', true);
-    }
+    // Four corners
+    addCorner(0, 0, 'tl');
+    addCorner(L.visW - cs, 0, 'tr');
+    addCorner(0, L.visH - cs, 'bl');
+    addCorner(L.visW - cs, L.visH - cs, 'br');
 
-    // Bottom border: units across, outer strip on bottom (mirrored)
-    for (let i = 0; i < unitsAcross; i++) {
-      addHUnit(i, 1 + unitsTall, i, 'bottom', false);
-    }
+    // Top connector: 3 horizontal strips between TL and TR corners
+    const connX = cs;
+    zones.push(z('conn-top-outer1', 'conn-strip', connX, 0, L.centerW, sq));
+    zones.push(z('conn-top-middle', 'conn-middle', connX, sq, L.centerW, ic));
+    zones.push(z('conn-top-outer2', 'conn-strip', connX, sq + ic, L.centerW, sq));
 
-    // Left border: units stacked, outer strip on left
-    for (let i = 0; i < unitsTall; i++) {
-      addVUnit(0, 1 + i, i, 'left', true);
-    }
+    // Bottom connector
+    const botY = L.visH - cs;
+    zones.push(z('conn-bot-outer1', 'conn-strip', connX, botY, L.centerW, sq));
+    zones.push(z('conn-bot-middle', 'conn-middle', connX, botY + sq, L.centerW, ic));
+    zones.push(z('conn-bot-outer2', 'conn-strip', connX, botY + sq + ic, L.centerW, sq));
 
-    // Right border: units stacked, outer strip on right
-    for (let i = 0; i < unitsTall; i++) {
-      addVUnit(unitsAcross - 1, 1 + i, i, 'right', false);
-    }
+    // Left connector: 3 vertical strips
+    const connY = cs;
+    zones.push(z('conn-left-outer1', 'conn-strip', 0, connY, sq, L.centerH));
+    zones.push(z('conn-left-middle', 'conn-middle', sq, connY, ic, L.centerH));
+    zones.push(z('conn-left-outer2', 'conn-strip', sq + ic, connY, sq, L.centerH));
+
+    // Right connector
+    const rightX = L.visW - cs;
+    zones.push(z('conn-right-outer1', 'conn-strip', rightX, connY, sq, L.centerH));
+    zones.push(z('conn-right-middle', 'conn-middle', rightX + sq, connY, ic, L.centerH));
+    zones.push(z('conn-right-outer2', 'conn-strip', rightX + sq + ic, connY, sq, L.centerH));
 
     // Center panel
-    const centerX = hemX + UNIT_SIZE;
-    const centerY = hemY + UNIT_SIZE;
-    const centerW = (unitsAcross - 2) * UNIT_SIZE;
-    const centerH = unitsTall * UNIT_SIZE;
-    zones.push({
-      id: 'center',
-      type: 'center',
-      x: offsetX + centerX * scale,
-      y: offsetY + centerY * scale,
-      w: centerW * scale,
-      h: centerH * scale,
-    });
+    zones.push(z('center', 'center', cs, cs, L.centerW, L.centerH));
 
     return zones;
   },
@@ -180,32 +126,34 @@ export const FramePattern = {
     config._canvasH = canvasH;
     const { scale, offsetX, offsetY } = scaleToCanvas(config, canvasW, canvasH);
 
-    // Draw outer hem border
-    ctx.strokeStyle = '#aaa';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(offsetX, offsetY, config.width * scale, config.height * scale);
+    if (!config.hideHem) {
+      // Outer hem border
+      ctx.strokeStyle = '#aaa';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(offsetX, offsetY, config.width * scale, config.height * scale);
 
-    // Hem area background
-    ctx.fillStyle = '#f8f8f0';
-    ctx.fillRect(offsetX, offsetY, config.width * scale, config.height * scale);
+      // Hem area background
+      ctx.fillStyle = '#f8f8f0';
+      ctx.fillRect(offsetX, offsetY, config.width * scale, config.height * scale);
+    }
 
     const zones = this.getZones(config);
 
-    // Draw each zone
     for (const zone of zones) {
       const color = config.zoneColors?.[zone.id];
 
-      // Default colors by type
       let defaultColor;
       if (zone.type === 'center') defaultColor = '#f0ece4';
-      else if (zone.type === 'square') defaultColor = '#d8d0c4';
-      else if (zone.type === 'strip') defaultColor = '#e8e4dc';
+      else if (zone.type === 'corner-sq') defaultColor = '#d8d0c4';
+      else if (zone.type === 'corner-strip') defaultColor = '#e0dbd2';
+      else if (zone.type === 'corner-center') defaultColor = '#e8e4dc';
+      else if (zone.type === 'conn-middle') defaultColor = '#e8e4dc';
+      else if (zone.type === 'conn-strip') defaultColor = '#e0dbd2';
       else defaultColor = '#e8e8e8';
 
       ctx.fillStyle = color ? color.hex : defaultColor;
       ctx.fillRect(zone.x, zone.y, zone.w, zone.h);
 
-      // Seam lines
       ctx.strokeStyle = '#888';
       ctx.lineWidth = 1;
       ctx.setLineDash([]);
@@ -223,187 +171,138 @@ export const FramePattern = {
         ctx.setLineDash([]);
       }
     }
+
+    // Dimension labels (skip for client PDF)
+    if (!config.hideDimensions) {
+      drawDimensions(ctx, zones, config, scale, offsetX, offsetY);
+    }
   },
 
   calculateCuts(config) {
-    const layout = this._layout(config);
-    const { unitsAcross, unitsTall, effectiveHemSides, effectiveHemTop } = layout;
+    const L = this._layout(config);
     const sa = config.seamAllowance;
+    const sq = L.innerCornerSq;
+    const ic = L.innerCenter;
     const cuts = [];
 
-    // Center panel — all edges are internal seams
-    const centerW = (unitsAcross - 2) * UNIT_SIZE;
-    const centerH = unitsTall * UNIT_SIZE;
-    const centerColor = config.zoneColors?.['center'];
+    // Center panel — all internal seams
     cuts.push({
       name: 'Center panel',
       quantity: 1,
-      color: centerColor ? centerColor.hex : null,
-      colorName: centerColor ? centerColor.name : null,
-      cutWidth: centerW + 2 * sa,
-      cutHeight: centerH + 2 * sa,
-      visibleWidth: centerW,
-      visibleHeight: centerH,
+      color: config.zoneColors?.['center']?.hex || null,
+      colorName: config.zoneColors?.['center']?.name || null,
+      cutWidth: L.centerW + 2 * sa,
+      cutHeight: L.centerH + 2 * sa,
+      visibleWidth: L.centerW,
+      visibleHeight: L.centerH,
     });
 
-    // Border squares (2x2 visible) — all have internal seams on all sides
-    // except edge squares which have hem on one or two sides
-    // For simplicity, categorize by position:
-
-    // Top unit squares — top edge has hem, other edges internal seam
-    const topSqColor = config.zoneColors?.['top-unit0-sq0'];
+    // Corner 2x2 squares — 4 per corner x 4 corners = 16
+    // Some are on edges (get hem), most are internal
+    // Top-left corner of TL: gets hemTop + hemSides
+    // Simplification: group all corner squares as internal (conservative — they all get sa on each side)
+    // Edge pieces will need hem instead of sa on outer edges
+    const tlSqColor = config.zoneColors?.['tl-sq-tl'];
     cuts.push({
-      name: 'Top border square',
-      quantity: 3 * unitsAcross,
-      color: topSqColor ? topSqColor.hex : null,
-      colorName: topSqColor ? topSqColor.name : null,
-      cutWidth: SQUARE_SIZE + 2 * sa,
-      cutHeight: SQUARE_SIZE + 2 * sa,
-      visibleWidth: SQUARE_SIZE,
-      visibleHeight: SQUARE_SIZE,
+      name: 'Corner square (interior)',
+      quantity: 16,
+      color: tlSqColor?.hex || null,
+      colorName: tlSqColor?.name || null,
+      cutWidth: sq + 2 * sa,
+      cutHeight: sq + 2 * sa,
+      visibleWidth: sq,
+      visibleHeight: sq,
     });
 
-    // Bottom unit squares
-    const botSqColor = config.zoneColors?.['bottom-unit0-sq0'];
+    // Corner horizontal strips — 2 per corner x 4 = 8
+    const chColor = config.zoneColors?.['tl-hstrip-top'];
     cuts.push({
-      name: 'Bottom border square',
-      quantity: 3 * unitsAcross,
-      color: botSqColor ? botSqColor.hex : null,
-      colorName: botSqColor ? botSqColor.name : null,
-      cutWidth: SQUARE_SIZE + 2 * sa,
-      cutHeight: SQUARE_SIZE + 2 * sa,
-      visibleWidth: SQUARE_SIZE,
-      visibleHeight: SQUARE_SIZE,
+      name: 'Corner h-strip',
+      quantity: 8,
+      color: chColor?.hex || null,
+      colorName: chColor?.name || null,
+      cutWidth: ic + 2 * sa,
+      cutHeight: sq + 2 * sa,
+      visibleWidth: ic,
+      visibleHeight: sq,
     });
 
-    // Left unit squares
-    const leftSqColor = config.zoneColors?.['left-unit0-sq0'];
+    // Corner vertical strips — 2 per corner x 4 = 8
+    const cvColor = config.zoneColors?.['tl-vstrip-left'];
     cuts.push({
-      name: 'Left border square',
-      quantity: 3 * unitsTall,
-      color: leftSqColor ? leftSqColor.hex : null,
-      colorName: leftSqColor ? leftSqColor.name : null,
-      cutWidth: SQUARE_SIZE + 2 * sa,
-      cutHeight: SQUARE_SIZE + 2 * sa,
-      visibleWidth: SQUARE_SIZE,
-      visibleHeight: SQUARE_SIZE,
+      name: 'Corner v-strip',
+      quantity: 8,
+      color: cvColor?.hex || null,
+      colorName: cvColor?.name || null,
+      cutWidth: sq + 2 * sa,
+      cutHeight: ic + 2 * sa,
+      visibleWidth: sq,
+      visibleHeight: ic,
     });
 
-    // Right unit squares
-    const rightSqColor = config.zoneColors?.['right-unit0-sq0'];
+    // Corner center squares — 1 per corner x 4 = 4
+    const ccColor = config.zoneColors?.['tl-center'];
     cuts.push({
-      name: 'Right border square',
-      quantity: 3 * unitsTall,
-      color: rightSqColor ? rightSqColor.hex : null,
-      colorName: rightSqColor ? rightSqColor.name : null,
-      cutWidth: SQUARE_SIZE + 2 * sa,
-      cutHeight: SQUARE_SIZE + 2 * sa,
-      visibleWidth: SQUARE_SIZE,
-      visibleHeight: SQUARE_SIZE,
+      name: 'Corner center',
+      quantity: 4,
+      color: ccColor?.hex || null,
+      colorName: ccColor?.name || null,
+      cutWidth: ic + 2 * sa,
+      cutHeight: ic + 2 * sa,
+      visibleWidth: ic,
+      visibleHeight: ic,
     });
 
-    // Top outer strips — top edge = hemTop
-    const topOuterColor = config.zoneColors?.['top-unit0-outer-strip'];
+    // Top/bottom connector outer strips — 2 per connector x 2 = 4
+    const ctoColor = config.zoneColors?.['conn-top-outer1'];
     cuts.push({
-      name: 'Top outer strip',
-      quantity: unitsAcross,
-      color: topOuterColor ? topOuterColor.hex : null,
-      colorName: topOuterColor ? topOuterColor.name : null,
-      cutWidth: STRIP_W + 2 * sa,
-      cutHeight: STRIP_H + effectiveHemTop + sa,
-      visibleWidth: STRIP_W,
-      visibleHeight: STRIP_H,
+      name: 'Top/bottom outer strip',
+      quantity: 4,
+      color: ctoColor?.hex || null,
+      colorName: ctoColor?.name || null,
+      cutWidth: L.centerW + 2 * sa,
+      cutHeight: sq + 2 * sa,
+      visibleWidth: L.centerW,
+      visibleHeight: sq,
     });
 
-    // Top inner strips — all internal seams
-    const topInnerColor = config.zoneColors?.['top-unit0-inner-strip'];
+    // Top/bottom connector middle strips — 1 per connector x 2 = 2
+    const ctmColor = config.zoneColors?.['conn-top-middle'];
     cuts.push({
-      name: 'Top inner strip',
-      quantity: unitsAcross,
-      color: topInnerColor ? topInnerColor.hex : null,
-      colorName: topInnerColor ? topInnerColor.name : null,
-      cutWidth: STRIP_W + 2 * sa,
-      cutHeight: STRIP_H + 2 * sa,
-      visibleWidth: STRIP_W,
-      visibleHeight: STRIP_H,
+      name: 'Top/bottom middle strip',
+      quantity: 2,
+      color: ctmColor?.hex || null,
+      colorName: ctmColor?.name || null,
+      cutWidth: L.centerW + 2 * sa,
+      cutHeight: ic + 2 * sa,
+      visibleWidth: L.centerW,
+      visibleHeight: ic,
     });
 
-    // Bottom outer strips — bottom edge = hemBottom
-    const botOuterColor = config.zoneColors?.['bottom-unit0-outer-strip'];
+    // Left/right connector outer strips — 2 per connector x 2 = 4
+    const cloColor = config.zoneColors?.['conn-left-outer1'];
     cuts.push({
-      name: 'Bottom outer strip',
-      quantity: unitsAcross,
-      color: botOuterColor ? botOuterColor.hex : null,
-      colorName: botOuterColor ? botOuterColor.name : null,
-      cutWidth: STRIP_W + 2 * sa,
-      cutHeight: STRIP_H + config.hemBottom + sa,  // bottom hem stays fixed
-      visibleWidth: STRIP_W,
-      visibleHeight: STRIP_H,
+      name: 'Left/right outer strip',
+      quantity: 4,
+      color: cloColor?.hex || null,
+      colorName: cloColor?.name || null,
+      cutWidth: sq + 2 * sa,
+      cutHeight: L.centerH + 2 * sa,
+      visibleWidth: sq,
+      visibleHeight: L.centerH,
     });
 
-    // Bottom inner strips
-    const botInnerColor = config.zoneColors?.['bottom-unit0-inner-strip'];
+    // Left/right connector middle strips — 1 per connector x 2 = 2
+    const clmColor = config.zoneColors?.['conn-left-middle'];
     cuts.push({
-      name: 'Bottom inner strip',
-      quantity: unitsAcross,
-      color: botInnerColor ? botInnerColor.hex : null,
-      colorName: botInnerColor ? botInnerColor.name : null,
-      cutWidth: STRIP_W + 2 * sa,
-      cutHeight: STRIP_H + 2 * sa,
-      visibleWidth: STRIP_W,
-      visibleHeight: STRIP_H,
-    });
-
-    // Left outer strips — left edge = hemSides
-    const leftOuterColor = config.zoneColors?.['left-unit0-outer-strip'];
-    cuts.push({
-      name: 'Left outer strip',
-      quantity: unitsTall,
-      color: leftOuterColor ? leftOuterColor.hex : null,
-      colorName: leftOuterColor ? leftOuterColor.name : null,
-      cutWidth: STRIP_H + effectiveHemSides + sa,
-      cutHeight: STRIP_W + 2 * sa,
-      visibleWidth: STRIP_H,
-      visibleHeight: STRIP_W,
-    });
-
-    // Left inner strips
-    const leftInnerColor = config.zoneColors?.['left-unit0-inner-strip'];
-    cuts.push({
-      name: 'Left inner strip',
-      quantity: unitsTall,
-      color: leftInnerColor ? leftInnerColor.hex : null,
-      colorName: leftInnerColor ? leftInnerColor.name : null,
-      cutWidth: STRIP_H + 2 * sa,
-      cutHeight: STRIP_W + 2 * sa,
-      visibleWidth: STRIP_H,
-      visibleHeight: STRIP_W,
-    });
-
-    // Right outer strips — right edge = hemSides
-    const rightOuterColor = config.zoneColors?.['right-unit0-outer-strip'];
-    cuts.push({
-      name: 'Right outer strip',
-      quantity: unitsTall,
-      color: rightOuterColor ? rightOuterColor.hex : null,
-      colorName: rightOuterColor ? rightOuterColor.name : null,
-      cutWidth: STRIP_H + effectiveHemSides + sa,
-      cutHeight: STRIP_W + 2 * sa,
-      visibleWidth: STRIP_H,
-      visibleHeight: STRIP_W,
-    });
-
-    // Right inner strips
-    const rightInnerColor = config.zoneColors?.['right-unit0-inner-strip'];
-    cuts.push({
-      name: 'Right inner strip',
-      quantity: unitsTall,
-      color: rightInnerColor ? rightInnerColor.hex : null,
-      colorName: rightInnerColor ? rightInnerColor.name : null,
-      cutWidth: STRIP_H + 2 * sa,
-      cutHeight: STRIP_W + 2 * sa,
-      visibleWidth: STRIP_H,
-      visibleHeight: STRIP_W,
+      name: 'Left/right middle strip',
+      quantity: 2,
+      color: clmColor?.hex || null,
+      colorName: clmColor?.name || null,
+      cutWidth: ic + 2 * sa,
+      cutHeight: L.centerH + 2 * sa,
+      visibleWidth: ic,
+      visibleHeight: L.centerH,
     });
 
     return cuts;

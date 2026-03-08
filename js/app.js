@@ -3,6 +3,7 @@
 // Pattern imports
 import { TilePattern } from './patterns/tile.js';
 import { FramePattern } from './patterns/frame.js';
+import { SquarePattern } from './patterns/square.js';
 import { DiamondPattern } from './patterns/diamond.js';
 import { NestedPattern } from './patterns/nested.js';
 
@@ -10,7 +11,10 @@ import { NestedPattern } from './patterns/nested.js';
 import { renderPicker } from './picker.js';
 
 // PDF export
-import { exportPDF } from './pdf.js';
+import { exportPDF, exportClientPDF } from './pdf.js';
+
+// Calculator
+import { scaleToCanvas } from './calculator.js';
 
 // Color imports
 import { loadLibraries, renderSwatchGrid, addCustomColor } from './colors.js';
@@ -31,6 +35,7 @@ const state = {
   zoneColors: {},   // zoneId -> { name, hex }
   selectedZone: null,
   zones: [],
+  viewMode: 'design', // 'design' or 'cutsheet'
 };
 
 // Registered patterns (populated as patterns are implemented)
@@ -54,19 +59,176 @@ export function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const pattern = patterns[state.pattern];
-  if (pattern) {
-    const config = getConfig();
-    state.zones = pattern.getZones(config);
-    pattern.render(ctx, config, canvas.width, canvas.height);
-  } else {
-    // Placeholder when no pattern is loaded
+  if (!pattern) {
     ctx.fillStyle = '#f0f0f0';
     ctx.fillRect(20, 20, canvas.width - 40, canvas.height - 40);
     ctx.fillStyle = '#999';
     ctx.font = '16px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('Select a pattern', canvas.width / 2, canvas.height / 2);
+    return;
   }
+
+  const config = getConfig();
+  state.zones = pattern.getZones(config);
+
+  if (state.viewMode === 'cutsheet') {
+    renderCutSheetView(ctx, config, pattern);
+  } else {
+    pattern.render(ctx, config, canvas.width, canvas.height);
+  }
+}
+
+function renderCutSheetView(ctx, config, pattern) {
+  const canvasW = canvas.width;
+  const canvasH = canvas.height;
+  const zones = state.zones;
+  const sa = config.seamAllowance;
+
+  if (!zones.length) return;
+
+  // We need to compute each zone's cutting dimensions and position them
+  // in the same spatial arrangement but with gaps between pieces.
+  // Each piece grows by seam allowances on all sides, so we need to:
+  // 1. Keep the same center positions as design view
+  // 2. But scale everything so the expanded pieces + gaps fit
+
+  // Gap between pieces (in inches, before scaling)
+  const gapInches = 0.8;
+
+  // Compute how many seam boundaries exist in each axis
+  // by looking at unique x-edges and y-edges
+  const xEdges = new Set();
+  const yEdges = new Set();
+  for (const z of zones) {
+    if (!z.visW) continue;
+    xEdges.add(Math.round(z.x * 100));
+    xEdges.add(Math.round((z.x + z.w) * 100));
+    yEdges.add(Math.round(z.y * 100));
+    yEdges.add(Math.round((z.y + z.h) * 100));
+  }
+  const numXGaps = xEdges.size - 1;
+  const numYGaps = yEdges.size - 1;
+
+  // Get the design view's scale and offset for reference
+  const { scale: designScale, offsetX: designOffsetX, offsetY: designOffsetY } =
+    scaleToCanvas(config, canvasW, canvasH);
+
+  // Total design pixel size
+  const designW = config.width * designScale;
+  const designH = config.height * designScale;
+
+  // Extra space needed for gaps (in canvas pixels)
+  const totalExtraX = numXGaps * gapInches * designScale;
+  const totalExtraY = numYGaps * gapInches * designScale;
+
+  // New scale to fit the exploded view
+  const explodedW = designW + totalExtraX;
+  const explodedH = designH + totalExtraY;
+  const fitScale = Math.min(
+    (canvasW - 60) / explodedW,
+    (canvasH - 60) / explodedH,
+    1.0
+  );
+
+  // Sort edges to create index mapping
+  const sortedX = [...xEdges].sort((a, b) => a - b);
+  const sortedY = [...yEdges].sort((a, b) => a - b);
+
+  function xEdgeIndex(px) {
+    const rounded = Math.round(px * 100);
+    return sortedX.indexOf(rounded);
+  }
+  function yEdgeIndex(py) {
+    const rounded = Math.round(py * 100);
+    return sortedY.indexOf(rounded);
+  }
+
+  // Offset so exploded view is centered
+  const baseX = (canvasW - explodedW * fitScale) / 2;
+  const baseY = (canvasH - explodedH * fitScale) / 2;
+
+  const gapPx = gapInches * designScale * fitScale;
+  const saPx = sa * designScale * fitScale;
+
+  ctx.save();
+
+  for (const zone of zones) {
+    if (!zone.visW) continue;
+
+    // Original position relative to design origin
+    const relX = zone.x - designOffsetX;
+    const relY = zone.y - designOffsetY;
+    const origW = zone.w;
+    const origH = zone.h;
+
+    // How many gaps to insert before this zone's left edge and top edge
+    const gapsLeft = xEdgeIndex(zone.x);
+    const gapsTop = yEdgeIndex(zone.y);
+
+    // New position: original position * fitScale + gaps * gapPx + expand by sa
+    const newX = baseX + relX * fitScale + gapsLeft * gapPx - saPx;
+    const newY = baseY + relY * fitScale + gapsTop * gapPx - saPx;
+    const newW = origW * fitScale + 2 * saPx;
+    const newH = origH * fitScale + 2 * saPx;
+
+    // Fill with color
+    const color = config.zoneColors?.[zone.id];
+    ctx.fillStyle = color ? color.hex : '#e8e8e8';
+    ctx.fillRect(newX, newY, newW, newH);
+
+    // Outer edge = cutting line (solid)
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([]);
+    ctx.strokeRect(newX, newY, newW, newH);
+
+    // Inner dashed line = visible area (fold/seam line)
+    ctx.strokeStyle = '#999';
+    ctx.lineWidth = 0.5;
+    ctx.setLineDash([4, 3]);
+    ctx.strokeRect(newX + saPx, newY + saPx, newW - 2 * saPx, newH - 2 * saPx);
+    ctx.setLineDash([]);
+
+    // Cutting dimension label
+    const cutW = zone.visW + 2 * sa;
+    const cutH = zone.visH + 2 * sa;
+    const label = `${fmtDim(cutW)}" x ${fmtDim(cutH)}"`;
+
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    if (newW > 35 && newH > 14) {
+      // Label inside
+      const cx = newX + newW / 2;
+      const cy = newY + newH / 2;
+      const tm = ctx.measureText(label);
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fillRect(cx - tm.width / 2 - 2, cy - 6, tm.width + 4, 12);
+      ctx.fillStyle = '#c0392b';
+      ctx.fillText(label, cx, cy);
+    }
+  }
+
+  // Title
+  ctx.fillStyle = '#333';
+  ctx.font = '13px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('Cut Sheet — cutting dimensions (solid = cut line, dashed = fold/seam line)', 10, 8);
+
+  ctx.restore();
+}
+
+function fmtDim(n) {
+  if (Number.isInteger(n)) return n.toString();
+  // Show fractions cleanly
+  const frac = n - Math.floor(n);
+  if (Math.abs(frac - 0.5) < 0.01) return Math.floor(n) + '.5';
+  if (Math.abs(frac - 0.25) < 0.01) return Math.floor(n) + '.25';
+  if (Math.abs(frac - 0.75) < 0.01) return Math.floor(n) + '.75';
+  return n.toFixed(2);
 }
 
 function handleCanvasClick(e) {
@@ -408,7 +570,7 @@ async function init() {
     assignColor(color);
   });
 
-  // Export PDF button
+  // Export PDF button (full — 2 pages with dimensions + cut sheet)
   document.getElementById('btn-export').addEventListener('click', () => {
     const config = getConfig();
     config.patternName = state.pattern;
@@ -416,6 +578,43 @@ async function init() {
     if (pattern) {
       exportPDF(config, pattern, canvas);
     }
+  });
+
+  // Client PDF button (clean 1-page preview, no dimensions)
+  document.getElementById('btn-client-pdf').addEventListener('click', () => {
+    const config = getConfig();
+    config.patternName = state.pattern;
+    config.hideDimensions = true;
+    config.hideHem = true;
+    const pattern = patterns[state.pattern];
+    if (pattern) {
+      // Temporarily render design view without dimensions for the capture
+      const prevMode = state.viewMode;
+      const prevZone = state.selectedZone;
+      state.viewMode = 'design';
+      state.selectedZone = null;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      pattern.render(ctx, config, canvas.width, canvas.height);
+      exportClientPDF(config, pattern, canvas);
+      // Restore
+      state.viewMode = prevMode;
+      state.selectedZone = prevZone;
+      render();
+    }
+  });
+
+  // View toggle
+  document.getElementById('btn-design-view').addEventListener('click', () => {
+    state.viewMode = 'design';
+    document.getElementById('btn-design-view').classList.add('active');
+    document.getElementById('btn-cut-view').classList.remove('active');
+    render();
+  });
+  document.getElementById('btn-cut-view').addEventListener('click', () => {
+    state.viewMode = 'cutsheet';
+    document.getElementById('btn-cut-view').classList.add('active');
+    document.getElementById('btn-design-view').classList.remove('active');
+    render();
   });
 
   // Keyboard navigation — on canvas and document
@@ -432,6 +631,7 @@ async function init() {
 
   // Register patterns
   registerPattern('tile', TilePattern);
+  registerPattern('square', SquarePattern);
   registerPattern('frame', FramePattern);
   registerPattern('diamond', DiamondPattern);
   registerPattern('nested', NestedPattern);

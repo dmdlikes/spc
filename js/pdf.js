@@ -13,7 +13,7 @@ export function exportPDF(config, pattern, canvasElement) {
   doc.text('StellaLeeStudio', margin, margin);
 
   doc.setFontSize(14);
-  const patternNames = { tile: 'Tile', frame: 'Frame', diamond: 'Diamond', nested: 'Nested Rectangle' };
+  const patternNames = { tile: 'Tile', frame: 'Frame', square: 'Square', diamond: 'Diamond', nested: 'Nested Rectangle' };
   const patternName = patternNames[config.patternName] || config.patternName;
   doc.text(`Pattern: ${patternName}`, margin, margin + 24);
 
@@ -138,7 +138,7 @@ export function exportPDF(config, pattern, canvasElement) {
   const boltWidth = 58;
   for (const [key, total] of Object.entries(fabricTotals)) {
     const linearInches = total.area / boltWidth;
-    const yards = Math.ceil(linearInches / 36 * 10) / 10; // round up to nearest 0.1 yard
+    const yards = Math.ceil(linearInches / 36 * 10) / 10;
     if (total.hex) {
       doc.setFillColor(total.hex);
       doc.rect(margin, y - 8, 10, 10, 'F');
@@ -157,4 +157,82 @@ export function exportPDF(config, pattern, canvasElement) {
   doc.text(`Internal seam: ${config.seamAllowance}" per side  |  Sides/Bottom hem: ${config.hemSides}"  |  Top hem: ${config.hemTop}"`, margin, y);
 
   doc.save('pojagi-studio-export.pdf');
+}
+
+// --- Client PDF: clean single-page preview for sharing ---
+export function exportClientPDF(config, pattern, canvasElement) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('portrait', 'pt', 'letter');
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 40;
+  const bottomMargin = 60;
+  const contentW = pageW - margin * 2;
+
+  // Header
+  doc.setFontSize(22);
+  doc.setTextColor(44, 62, 80); // #2c3e50
+  doc.text('StellaLeeStudio', margin, margin + 4);
+
+  // Pattern name
+  const patternNames = { tile: 'Tile', frame: 'Frame', square: 'Square', diamond: 'Diamond', nested: 'Nested Rectangle' };
+  const patternName = patternNames[config.patternName] || config.patternName;
+  doc.setFontSize(13);
+  doc.setTextColor(100);
+  doc.text(`${patternName}  —  ${config.width}" x ${config.height}"`, margin, margin + 22);
+
+  // Canvas image (no dimensions shown — caller should ensure design view without dims)
+  const imgData = canvasElement.toDataURL('image/png');
+  const canvasAspect = canvasElement.width / canvasElement.height;
+
+  // Available space for image
+  const imgTop = margin + 40;
+  const colorLegendH = Object.keys(config.zoneColors).length > 0 ? 100 : 0;
+  const maxImgH = pageH - imgTop - bottomMargin - colorLegendH - 10;
+  const maxImgW = contentW;
+
+  let imgW, imgH;
+  if (canvasAspect > maxImgW / maxImgH) {
+    imgW = maxImgW;
+    imgH = maxImgW / canvasAspect;
+  } else {
+    imgH = maxImgH;
+    imgW = maxImgH * canvasAspect;
+  }
+  const imgX = margin + (contentW - imgW) / 2;
+  doc.addImage(imgData, 'PNG', imgX, imgTop, imgW, imgH);
+
+  // Color legend
+  let y = imgTop + imgH + 20;
+  const usedColors = {};
+  for (const [zoneId, color] of Object.entries(config.zoneColors)) {
+    if (!usedColors[color.hex]) {
+      usedColors[color.hex] = color;
+    }
+  }
+  const colorList = Object.values(usedColors);
+  if (colorList.length > 0) {
+    doc.setFontSize(10);
+    doc.setTextColor(80);
+    doc.text('Colors:', margin, y);
+    y += 14;
+    for (const c of colorList) {
+      doc.setFillColor(c.hex);
+      doc.rect(margin, y - 8, 10, 10, 'F');
+      doc.setDrawColor(180);
+      doc.rect(margin, y - 8, 10, 10, 'S');
+      doc.setFontSize(9);
+      doc.setTextColor(60);
+      const source = c.line ? `(${c.line})` : '';
+      doc.text(`${c.name} ${source}`, margin + 16, y);
+      y += 14;
+    }
+  }
+
+  // Etsy URL — bottom right
+  doc.setFontSize(9);
+  doc.setTextColor(120);
+  doc.text('etsy.com/shop/StellaLeeStudio', pageW - margin, pageH - bottomMargin + 20, { align: 'right' });
+
+  doc.save('pojagi-studio-client.pdf');
 }

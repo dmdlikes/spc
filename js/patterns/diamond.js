@@ -110,10 +110,11 @@ export const DiamondPattern = {
     // Remove clip
     ctx.restore();
 
-    // Draw outer hem border stroke
-    ctx.strokeStyle = '#aaa';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(offsetX, offsetY, config.width * scale, config.height * scale);
+    if (!config.hideHem) {
+      ctx.strokeStyle = '#aaa';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(offsetX, offsetY, config.width * scale, config.height * scale);
+    }
   },
 
   calculateCuts(config) {
